@@ -1,47 +1,19 @@
-package com.llira.springbootbackendapirest.entity;
+package com.llira.springbootbackendapirest.vm;
 
 import org.springframework.format.annotation.DateTimeFormat;
 
-import javax.persistence.*;
-import javax.validation.constraints.Email;
-import javax.validation.constraints.NotEmpty;
-import javax.validation.constraints.Size;
-import java.io.Serializable;
 import java.util.Date;
 
-@Entity
-@Table(name = "customers")
-public class Customer implements Serializable {
-
-    @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
+public class CustomerVM {
     private Long id;
-
-    @NotEmpty(message = "no puede estar vacío.")
-    @Size(min = 5, max = 10, message = "debe tener un tamaño entre 5 y 10 caracteres.")
-    @Column(name = "full_name", nullable = false)
     private String fullName;
-
-    @NotEmpty(message = "no puede estar vacío.")
-    @Column(name = "last_name")
     private String lastName;
-
-    @NotEmpty(message = "no puede estar vacío.")
-    @Email(message = "debe ser una dirección de correo electrónico con formato correcto.")
-    @Column(nullable = false, unique = true)
     private String email;
-
-    @Column(name = "created_at")
-    @Temporal(TemporalType.DATE)
     @DateTimeFormat(pattern = "dd/MM/yyyy")
     private Date createdAt;
-
-    @Column(nullable = false)
     private Boolean active;
 
-    @PrePersist
-    public void prePersist() {
-        createdAt = new Date();
+    public CustomerVM() {
     }
 
     public Long getId() {
@@ -91,6 +63,4 @@ public class Customer implements Serializable {
     public void setActive(Boolean active) {
         this.active = active;
     }
-
-    private static final long serialVersionUID = 1L;
 }

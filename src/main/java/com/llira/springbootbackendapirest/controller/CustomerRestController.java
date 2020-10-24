@@ -17,10 +17,9 @@ import javax.validation.Valid;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.NoSuchElementException;
 import java.util.stream.Collectors;
 
-@CrossOrigin(origins = {"http://localhost:4200"})
+@CrossOrigin(origins = {"http://localhost:4200", "http://localhost:8080"})
 @RestController
 @RequestMapping("/api/v1")
 public class CustomerRestController {
@@ -28,6 +27,11 @@ public class CustomerRestController {
     @Autowired
     private CustomerService customerService;
 
+    /**
+     * Método para obtener una lista sin paginación
+     *
+     * @return {@link ResponseEntity}
+     */
     @GetMapping("/customers")
     public ResponseEntity<?> index() {
         List<Customer> customers;
@@ -36,49 +40,57 @@ public class CustomerRestController {
             customers = customerService.findAll();
         } catch (DataAccessException e) {
             map.put("message", "Se produjo un error al cargar los clientes.");
-            map.put("error", e.getMessage().concat(": ").concat(e.getMostSpecificCause().getMessage()));
+            map.put("error", e.getMessage() + ": " + e.getMostSpecificCause().getMessage());
             return new ResponseEntity<>(map, HttpStatus.INTERNAL_SERVER_ERROR);
         }
         return new ResponseEntity<>(customers, HttpStatus.OK);
     }
 
     /**
+     * Método para obtener una lista con paginación
      *
-     * @param page
-     * @param limit
-     * @param orderBy
-     * @return ResponseEntity
+     * @param page    página actual
+     * @param limit   elementos por página
+     * @param orderBy campo en específico para ordenar
+     * @param shape   ordenamiento ascendente o descendente
+     * @return {@link ResponseEntity}
      */
-    @GetMapping("/customers/page/{page}")
-    public ResponseEntity<?> index(@PathVariable Integer page,
+    @GetMapping("/customers/paginated")
+    public ResponseEntity<?> index(@RequestParam(name = "page", defaultValue = "0") Integer page,
                                    @RequestParam(name = "limit", defaultValue = "5") Integer limit,
-                                   @RequestParam(name = "orderBy", defaultValue = "id") String orderBy) {
+                                   @RequestParam(name = "orderBy", defaultValue = "id") String orderBy,
+                                   @RequestParam(name = "shape", defaultValue = "desc") String shape) {
         Page<Customer> customers;
         Map<String, Object> map = new HashMap<>();
         try {
-            Pageable pageable = PageRequest.of(page, limit, Sort.by(orderBy).descending());
+            Pageable pageable = PageRequest.of(page, limit, Sort.Direction.DESC, orderBy);
+            if (shape.equalsIgnoreCase("asc"))
+                pageable = PageRequest.of(page, limit, Sort.Direction.ASC, orderBy);
+            System.out.println("Pageable --> " + pageable);
             customers = customerService.findAll(pageable);
         } catch (DataAccessException e) {
             map.put("message", "Se produjo un error al cargar los clientes.");
-            map.put("error", e.getMessage().concat(": ").concat(e.getMostSpecificCause().getMessage()));
+            map.put("error", e.getMessage() + ": " + e.getMostSpecificCause().getMessage());
             return new ResponseEntity<>(map, HttpStatus.INTERNAL_SERVER_ERROR);
         }
         return new ResponseEntity<>(customers, HttpStatus.OK);
     }
 
+    /**
+     * Método para obtener un registro en específico
+     *
+     * @param id identificador único del registro
+     * @return {@link ResponseEntity}
+     */
     @GetMapping("/customers/{id}")
     public ResponseEntity<?> show(@PathVariable Long id) {
         Customer customer;
         Map<String, Object> map = new HashMap<>();
         try {
             customer = customerService.findById(id);
-        } catch (NoSuchElementException e) {
-            map.put("message", "Se produjo un error al obtener el cliente.");
-            map.put("error", e.getMessage());
-            return new ResponseEntity<>(map, HttpStatus.INTERNAL_SERVER_ERROR);
         } catch (DataAccessException e) {
             map.put("message", "Se produjo un error al obtener el cliente.");
-            map.put("error", e.getMessage().concat(": ").concat(e.getMostSpecificCause().getMessage()));
+            map.put("error", e.getMessage() + ": " + e.getMostSpecificCause().getMessage());
             return new ResponseEntity<>(map, HttpStatus.INTERNAL_SERVER_ERROR);
         }
         if (customer == null) {
@@ -90,32 +102,29 @@ public class CustomerRestController {
 
     @PostMapping("/customers")
     public ResponseEntity<?> create(@Valid @RequestBody Customer customer, BindingResult result) {
-        Customer c;
         Map<String, Object> map = new HashMap<>();
         if (result.hasErrors()) {
             List<String> errors = result.getFieldErrors()
                     .stream()
-                    .map(error -> "El campo [" + error.getField().toUpperCase() + "] " + error.getDefaultMessage())
+                    .map(e -> "El campo [" + e.getField().toUpperCase() + "] " + e.getDefaultMessage())
                     .collect(Collectors.toList());
             map.put("errors", errors);
             return new ResponseEntity<>(map, HttpStatus.BAD_REQUEST);
         }
         try {
-            c = customerService.save(customer);
+            customerService.save(customer);
         } catch (DataAccessException e) {
             map.put("message", "Se produjo un error al insertar el cliente.");
-            map.put("error", e.getMessage().concat(": ").concat(e.getMostSpecificCause().getMessage()));
+            map.put("error", e.getMessage() + ": " + e.getMostSpecificCause().getMessage());
             return new ResponseEntity<>(map, HttpStatus.INTERNAL_SERVER_ERROR);
         }
         map.put("message", "El cliente se creó con éxito.");
-        map.put("customer", c);
         return new ResponseEntity<>(map, HttpStatus.CREATED);
     }
 
     @PutMapping("/customers/{id}")
     public ResponseEntity<?> update(@Valid @RequestBody Customer customer, BindingResult result, @PathVariable Long id) {
         Customer c = customerService.findById(id);
-        Customer c1;
         Map<String, Object> map = new HashMap<>();
         if (result.hasErrors()) {
             List<String> errors = result.getFieldErrors()
@@ -131,18 +140,17 @@ public class CustomerRestController {
         }
         try {
             c.setFullName(customer.getFullName());
-            System.out.println(customer.getFullName());
             c.setLastName(customer.getLastName());
             c.setEmail(customer.getEmail());
             c.setCreatedAt(customer.getCreatedAt());
-            c1 = customerService.save(c);
+            c.setActive(customer.getActive());
+            customerService.save(c);
         } catch (DataAccessException e) {
             map.put("message", "Se produjo un error al actualizar el cliente.");
-            map.put("error", e.getMessage().concat(": ").concat(e.getMostSpecificCause().getMessage()));
+            map.put("error", e.getMessage() + ": " + e.getMostSpecificCause().getMessage());
             return new ResponseEntity<>(map, HttpStatus.INTERNAL_SERVER_ERROR);
         }
         map.put("message", "El cliente se actualizó con éxito.");
-        map.put("customer", c1);
         return new ResponseEntity<>(map, HttpStatus.CREATED);
     }
 
@@ -153,10 +161,29 @@ public class CustomerRestController {
             customerService.delete(id);
         } catch (DataAccessException e) {
             map.put("message", "Se produjo un error al eliminar el cliente.");
-            map.put("error", e.getMessage().concat(": ").concat(e.getMostSpecificCause().getMessage()));
+            map.put("error", e.getMessage() + ": " + e.getMostSpecificCause().getMessage());
             return new ResponseEntity<>(map, HttpStatus.INTERNAL_SERVER_ERROR);
         }
         map.put("message", "El cliente se eliminó con éxito.");
         return new ResponseEntity<>(map, HttpStatus.OK);
+    }
+
+    @GetMapping("/customers/filter")
+    public List<Customer> getData(@RequestParam(required = false, name = "fullName") String fullname,
+                                  @RequestParam(required = false, name = "lastName") String lastname,
+                                  @RequestParam(required = false, name = "email") String correo,
+                                  @RequestParam(required = false, name = "active") Boolean activo,
+                                  @RequestParam(required = false, name = "id") Integer key) {
+        HashMap<String, Object> params = new HashMap<>();
+        if (fullname != null)
+            params.put("fullName", fullname);
+        if (lastname != null)
+            params.put("lastName", lastname);
+        if (correo != null)
+            params.put("email", correo);
+        if (activo != null)
+            params.put("active", activo);
+
+        return customerService.getData(params);
     }
 }
